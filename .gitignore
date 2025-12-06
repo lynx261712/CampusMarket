@@ -1,0 +1,17 @@
+# 忽略虚拟环境
+venv/
+.venv/
+Scripts/
+Lib/
+
+# 忽略本地数据库 (每个人在自己电脑上生成)
+*.db
+*.sqlite3
+
+# 忽略编译缓存
+__pycache__/
+*.pyc
+
+# 忽略 PyCharm 配置
+.idea/
+
