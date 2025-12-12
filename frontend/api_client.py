@@ -20,11 +20,19 @@ class APIClient:
     def get_skills(keyword=None):
         return requests.get(f"{API_BASE_URL}/skills", params={"q": keyword})
 
+    # --- 【核心修改】增加 location 参数 ---
     @staticmethod
-    def get_lost_items(item_type=None, keyword=None):
-        params = {"q": keyword}
+    def get_lost_items(item_type=None, keyword=None, location=None):
+        params = {}
+        if keyword: params['keyword'] = keyword
+        if location: params['location'] = location
         if item_type is not None: params['type'] = item_type
         return requests.get(f"{API_BASE_URL}/lost-items", params=params)
+
+    # --- 【新增】获取标签云 ---
+    @staticmethod
+    def get_search_tags():
+        return requests.get(f"{API_BASE_URL}/lost-items/tags")
 
     @staticmethod
     def get_user_info(user_id):

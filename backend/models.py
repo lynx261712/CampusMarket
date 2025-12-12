@@ -1,42 +1,69 @@
+# backend/models.py
 from datetime import datetime
-from extensions import db  # 修改：去掉了前面的 .
+from extensions import db
 
-# --- 1. 用户表 ---
+
+# --- 1. 用户表 (不变) ---
 class User(db.Model):
     __tablename__ = 'users'
-
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(50), nullable=False, unique=True)
     password = db.Column(db.String(50), nullable=False)
     contact = db.Column(db.String(100), nullable=False)
     points = db.Column(db.Integer, default=10)
 
-    skills = db.relationship('Skill', backref='author', lazy=True)
-    lost_items = db.relationship('LostItem', backref='author', lazy=True)
+    # 关系定义保持不变...
 
-# --- 2. 失物招领表 ---
+
+# --- 2. 消息表 (新增) ---
+class Message(db.Model):
+    __tablename__ = 'messages'
+    id = db.Column(db.Integer, primary_key=True)
+    sender_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    receiver_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    content = db.Column(db.String(500), nullable=False)
+    create_time = db.Column(db.DateTime, default=datetime.now)
+
+    # 关联用户，方便查询显示名字
+    sender = db.relationship('User', foreign_keys=[sender_id], backref='sent_msgs')
+    receiver = db.relationship('User', foreign_keys=[receiver_id], backref='received_msgs')
+
+
+# --- 3. 失物招领表 (升级) ---
 class LostItem(db.Model):
     __tablename__ = 'lost_items'
-
     id = db.Column(db.Integer, primary_key=True)
+    # ... (原有字段: title, desc, location, type, image, create_time, user_id) ...
     title = db.Column(db.String(100), nullable=False)
     desc = db.Column(db.Text)
     location = db.Column(db.String(100))
     type = db.Column(db.Integer, default=0)
-    status = db.Column(db.Integer, default=0)
     image = db.Column(db.String(500))
     create_time = db.Column(db.DateTime, default=datetime.now)
     user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
 
-# --- 3. 技能/需求表 ---
+    # 【新增字段】
+    # 状态: 0=开放, 1=进行中(被接单), 2=已完成
+    status = db.Column(db.Integer, default=0)
+    # 接单人/帮助者 ID
+    helper_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
+    # 评价状态: 0=未评价, 1=已打赏, 2=已投诉
+    review_status = db.Column(db.Integer, default=0)
+
+
+# --- 4. 技能表 (升级) ---
 class Skill(db.Model):
     __tablename__ = 'skills'
-
     id = db.Column(db.Integer, primary_key=True)
+    # ... (原有字段) ...
     title = db.Column(db.String(100), nullable=False)
     cost = db.Column(db.String(100), nullable=False)
     type = db.Column(db.Integer, default=1)
-    status = db.Column(db.Integer, default=0)
     image = db.Column(db.String(500))
     create_time = db.Column(db.DateTime, default=datetime.now)
     user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+
+    # 【新增字段】
+    status = db.Column(db.Integer, default=0)  # 0=开放, 1=进行中, 2=已完成
+    helper_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
+    review_status = db.Column(db.Integer, default=0)
