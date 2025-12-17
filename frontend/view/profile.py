@@ -1,8 +1,10 @@
 import flet as ft
 from api_client import APIClient
+from view.my_help import MyHelpView
+from view.my_posts import MyPostsView
 
 
-# 【关键修改】增加了 on_nav_to_my_posts 参数
+# 【关键】这里必须接收所有参数，否则登录后跳转会报错 TypeError
 def ProfileView(user_id, on_logout, show_msg, on_nav_to_help, on_nav_to_my_posts):
     content_col = ft.Column()
 
@@ -13,7 +15,6 @@ def ProfileView(user_id, on_logout, show_msg, on_nav_to_help, on_nav_to_my_posts
                 u = res.json()['data']
                 stats = u['stats']
 
-                # 头部用户信息
                 header = ft.Container(
                     bgcolor="blue", padding=20, border_radius=15,
                     content=ft.Row([
@@ -26,7 +27,6 @@ def ProfileView(user_id, on_logout, show_msg, on_nav_to_help, on_nav_to_my_posts
                     ])
                 )
 
-                # 统计数据行
                 stats_row = ft.Row([
                     ft.Column([ft.Text(str(stats['posts']), size=18, weight="bold"), ft.Text("发布", size=12)],
                               horizontal_alignment="center"),
@@ -41,27 +41,13 @@ def ProfileView(user_id, on_logout, show_msg, on_nav_to_help, on_nav_to_my_posts
                     ft.Container(height=20),
                     stats_row,
                     ft.Divider(height=30),
-
-                    # 菜单区
-                    ft.ListTile(
-                        leading=ft.Icon(ft.Icons.HANDSHAKE, color="blue"),
-                        title=ft.Text("我参与的互助 (接单)"),
-                        subtitle=ft.Text("查看我帮助他人的订单状态"),
-                        on_click=on_nav_to_help
-                    ),
-                    ft.ListTile(
-                        leading=ft.Icon(ft.Icons.LIST_ALT, color="orange"),
-                        title=ft.Text("我的发布管理"),
-                        subtitle=ft.Text("管理我发布的内容、确认完成与评价"),
-                        # 【关键】点击跳转到新页面
-                        on_click=on_nav_to_my_posts
-                    ),
+                    ft.ListTile(leading=ft.Icon(ft.Icons.HANDSHAKE, color="blue"), title=ft.Text("我参与的互助 (接单)"),
+                                on_click=on_nav_to_help),
+                    ft.ListTile(leading=ft.Icon(ft.Icons.LIST_ALT, color="orange"), title=ft.Text("我的发布管理"),
+                                on_click=on_nav_to_my_posts),
                     ft.Divider(),
-                    ft.ListTile(
-                        leading=ft.Icon(ft.Icons.EXIT_TO_APP, color="red"),
-                        title=ft.Text("退出登录", color="red"),
-                        on_click=on_logout
-                    ),
+                    ft.ListTile(leading=ft.Icon(ft.Icons.EXIT_TO_APP, color="red"),
+                                title=ft.Text("退出登录", color="red"), on_click=on_logout),
                 ]
                 if content_col.page: content_col.update()
         except Exception as e:

@@ -1,10 +1,9 @@
 import requests
 import os
 
-# 允许本地代理，防止 requests 报错
+# 避免本地代理干扰
 os.environ["NO_PROXY"] = "127.0.0.1,localhost"
 API_BASE_URL = "http://127.0.0.1:5000/api"
-
 
 class APIClient:
     @staticmethod
@@ -13,8 +12,7 @@ class APIClient:
 
     @staticmethod
     def register(username, password, contact):
-        return requests.post(f"{API_BASE_URL}/register",
-                             json={"username": username, "password": password, "contact": contact})
+        return requests.post(f"{API_BASE_URL}/register", json={"username": username, "password": password, "contact": contact})
 
     @staticmethod
     def get_skills(keyword=None):
@@ -28,9 +26,24 @@ class APIClient:
         if item_type is not None: params['type'] = item_type
         return requests.get(f"{API_BASE_URL}/lost-items", params=params)
 
+    # --- 带文件上传的发布接口 ---
     @staticmethod
-    def get_search_tags():
-        return requests.get(f"{API_BASE_URL}/lost-items/tags")
+    def post_item(endpoint, form_data, file_path=None):
+        url = f"{API_BASE_URL}/{endpoint}"
+        # 如果有文件路径且文件存在
+        if file_path and os.path.exists(file_path):
+            try:
+                # 必须以二进制模式打开
+                with open(file_path, 'rb') as f:
+                    # files 字典: key='image' 对应后端 request.files['image']
+                    files = {'image': (os.path.basename(file_path), f)}
+                    # 注意：传 files 时不要传 json=...，而是用 data=form_data
+                    return requests.post(url, data=form_data, files=files)
+            except Exception as e:
+                print(f"File upload error: {e}")
+                return requests.post(url, data=form_data)
+        else:
+            return requests.post(url, data=form_data)
 
     @staticmethod
     def get_user_info(user_id):
@@ -41,14 +54,6 @@ class APIClient:
         return requests.get(f"{API_BASE_URL}/user/posts/{user_id}")
 
     @staticmethod
-    def update_user(data):
-        return requests.post(f"{API_BASE_URL}/user/update", json=data)
-
-    @staticmethod
-    def post_item(endpoint, data):
-        return requests.post(f"{API_BASE_URL}/{endpoint}", json=data)
-
-    @staticmethod
     def delete_item(item_id, category):
         return requests.post(f"{API_BASE_URL}/delete", json={"id": item_id, "category": category})
 
@@ -56,26 +61,18 @@ class APIClient:
     def interact(item_id, category):
         return requests.post(f"{API_BASE_URL}/interact", json={"item_id": item_id, "category": category})
 
-    # --- 【重点】以下是此次报错缺失的方法，请务必加上 ---
-
     @staticmethod
     def accept_order(item_id, category, user_id):
-        """接单接口"""
-        return requests.post(f"{API_BASE_URL}/order/accept",
-                             json={"id": item_id, "category": category, "user_id": user_id})
+        return requests.post(f"{API_BASE_URL}/order/accept", json={"id": item_id, "category": category, "user_id": user_id})
 
     @staticmethod
     def finish_order(item_id, category):
-        """确认完成接口"""
         return requests.post(f"{API_BASE_URL}/order/finish", json={"id": item_id, "category": category})
 
     @staticmethod
     def review_order(item_id, category, action):
-        """评价接口"""
-        return requests.post(f"{API_BASE_URL}/order/review",
-                             json={"id": item_id, "category": category, "action": action})
+        return requests.post(f"{API_BASE_URL}/order/review", json={"id": item_id, "category": category, "action": action})
 
     @staticmethod
     def get_my_helps(user_id):
-        """获取我参与的互助列表"""
         return requests.get(f"{API_BASE_URL}/user/helps/{user_id}")

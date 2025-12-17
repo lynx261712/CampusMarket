@@ -36,8 +36,8 @@ def DetailView(item, category, on_back, show_msg, current_user):
 
     # 按钮组
     action_row = ft.Row([
-        ft.ElevatedButton("💬 联系他", on_click=go_chat, expand=1),
-        ft.ElevatedButton("🙋‍♂️ 我来帮", on_click=do_accept, expand=1, bgcolor="orange", color="white")
+        ft.ElevatedButton("💬 联系", on_click=go_chat, expand=1),
+        ft.ElevatedButton("🙋‍♂️ 接收", on_click=do_accept, expand=1, bgcolor="orange", color="white")
     ])
 
     content_val = f"代价: {item.get('cost')}" if category == "skill" else f"描述: {item.get('desc')}"
