@@ -1,15 +1,16 @@
 import flet as ft
-# 这些引用是正确的，因为 main.py 同级目录下有 view 文件夹
+# 确保所有视图都正确导入
 from view.login import LoginView
 from view.profile import ProfileView
 from view.detail import DetailView
 from view.home import HomeView
 from view.my_help import MyHelpView
 from view.my_posts import MyPostsView
+from view.chat import ChatView  # 导入聊天页面
 
 
 def main(page: ft.Page):
-    # 页面基础设置
+    # --- 页面基础设置 ---
     page.title = "校园互助平台"
     page.window.width = 400
     page.window.height = 800
@@ -31,7 +32,9 @@ def main(page: ft.Page):
 
     body = ft.Container(expand=True)
 
-    # ================= 路由与回调 =================
+    # ==========================================
+    #  路由与导航逻辑
+    # ==========================================
 
     def login_success(user_data):
         current_user['id'] = user_data['user_id']
@@ -45,21 +48,62 @@ def main(page: ft.Page):
         show_msg("已退出登录", "green")
         switch_tab(2)
 
+    # --- 通用聊天跳转辅助函数 ---
+    def render_chat(partner_id, partner_name, back_callback):
+        """
+        跳转到聊天页面
+        :param back_callback: 点击返回键时的回调函数
+        """
+        body.content = ChatView(
+            current_user=current_user,
+            partner_id=partner_id,
+            partner_name=partner_name,
+            on_back=back_callback,
+            show_msg=show_msg
+        )
+        page.update()
+
+    # --- 详情页跳转 ---
     def go_detail(item, category):
-        # 跳转详情页
-        body.content = DetailView(item, category, lambda e: switch_tab(0), show_msg, current_user)
+        # 定义从详情页进入聊天时的返回逻辑：回到首页 (switch_tab(0))
+        def chat_callback(pid, pname):
+            render_chat(pid, pname, lambda e: switch_tab(0))
+
+        body.content = DetailView(
+            item,
+            category,
+            lambda e: switch_tab(0),
+            show_msg,
+            current_user,
+            chat_callback # 传入聊天回调
+        )
         page.update()
 
+    # --- 我参与的互助跳转 ---
     def go_my_help(e):
-        # 跳转'我参与的互助'
-        body.content = MyHelpView(current_user['id'], lambda e: switch_tab(2), show_msg)
+        # 定义从列表进入聊天时的返回逻辑：回到当前列表 (重新调用 go_my_help)
+        def chat_callback(pid, pname):
+            render_chat(pid, pname, lambda e: go_my_help(None))
+
+        # 【核心修改】这里传入了 on_nav_to_chat
+        body.content = MyHelpView(
+            current_user['id'],
+            lambda e: switch_tab(2), # 返回个人中心
+            show_msg,
+            on_nav_to_chat=chat_callback
+        )
         page.update()
 
+    # --- 我的发布跳转 ---
     def go_my_posts(e):
-        # 跳转'我的发布管理'
-        body.content = MyPostsView(current_user['id'], lambda e: switch_tab(2), show_msg)
+        body.content = MyPostsView(
+            current_user['id'],
+            lambda e: switch_tab(2),
+            show_msg
+        )
         page.update()
 
+    # --- 底部导航切换 ---
     def switch_tab(e):
         idx = e if isinstance(e, int) else e.control.data
 
@@ -78,8 +122,8 @@ def main(page: ft.Page):
                     user_id=current_user['id'],
                     on_logout=logout,
                     show_msg=show_msg,
-                    on_nav_to_help=go_my_help,
-                    on_nav_to_my_posts=go_my_posts
+                    on_nav_to_help=go_my_help,   # 绑定跳转
+                    on_nav_to_my_posts=go_my_posts # 绑定跳转
                 )
             else:
                 body.content = LoginView(login_success, show_msg)

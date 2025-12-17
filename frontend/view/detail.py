@@ -2,21 +2,23 @@ import flet as ft
 from api_client import APIClient
 
 
-def DetailView(item, category, on_back, show_msg, current_user):
+# 【修改】增加了参数 on_nav_to_chat
+def DetailView(item, category, on_back, show_msg, current_user, on_nav_to_chat):
     detail_img = ft.Image(src=item['image'], width=float("inf"), height=200, fit=ft.ImageFit.COVER)
 
     # 1. 聊天/联系逻辑
     def go_chat(e):
-        try:
-            res = APIClient.interact(item['id'], category)
-            if res.status_code == 200:
-                contact = res.json()['data']['contact']
-                e.page.dialog = ft.AlertDialog(title=ft.Text("联系方式"),
-                                               content=ft.Text(f"对方联系方式: {contact}", size=18, color="blue"))
-                e.page.dialog.open = True
-                e.page.update()
-        except Exception as ex:
-            show_msg(str(ex))
+        if not current_user['id']: return show_msg("请先登录")
+
+        target_id = item.get('user_id')
+        # 获取对方名字，如果没有则显示未知
+        target_name = item.get('user', '未知用户')
+
+        if str(target_id) == str(current_user['id']):
+            return show_msg("不能和自己聊天")
+
+        # 【核心修改】直接跳转到聊天页面
+        on_nav_to_chat(target_id, target_name)
 
     # 2. 接单逻辑
     def do_accept(e):

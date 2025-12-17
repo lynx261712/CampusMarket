@@ -91,9 +91,35 @@ class APIClient:
         return requests.post(f"{API_BASE_URL}/order/finish", json={"id": item_id, "category": category})
 
     @staticmethod
-    def review_order(item_id, category, action):
-        return requests.post(f"{API_BASE_URL}/order/review", json={"id": item_id, "category": category, "action": action})
+    def review_order(item_id, category, action, current_user_id):
+        return requests.post(f"{API_BASE_URL}/order/review", json={
+            "id": item_id,
+            "category": category,
+            "action": action,
+            "current_user_id": current_user_id  # 【新增】
+        })
 
     @staticmethod
     def get_my_helps(user_id):
         return requests.get(f"{API_BASE_URL}/user/helps/{user_id}")
+
+
+    @staticmethod
+    def get_messages(user_id, partner_id):
+        return requests.get(f"{API_BASE_URL}/messages", params={"user_id": user_id, "partner_id": partner_id})
+
+
+    @staticmethod
+    def send_message(sender_id, receiver_id, content=None, image_path=None):
+        url = f"{API_BASE_URL}/messages"
+        form_data = {"sender_id": str(sender_id), "receiver_id": str(receiver_id)}
+
+        if content:
+            form_data['content'] = content
+
+        if image_path and os.path.exists(image_path):
+            with open(image_path, 'rb') as f:
+                files = {'image': (os.path.basename(image_path), f)}
+                return requests.post(url, data=form_data, files=files)
+        else:
+            return requests.post(url, data=form_data)
