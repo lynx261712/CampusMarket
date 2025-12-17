@@ -54,6 +54,27 @@ class APIClient:
         return requests.get(f"{API_BASE_URL}/user/posts/{user_id}")
 
     @staticmethod
+    def update_user(user_id, username=None, contact=None, avatar_path=None):
+        """
+        更新用户信息，支持改名、改联系方式、上传头像
+        """
+        url = f"{API_BASE_URL}/user/update"
+
+        # 1. 准备基础文本数据
+        form_data = {"user_id": str(user_id)}
+        if username: form_data['username'] = username
+        if contact: form_data['contact'] = contact
+
+        # 2. 如果有头像文件，使用 multipart/form-data 上传
+        if avatar_path and os.path.exists(avatar_path):
+            with open(avatar_path, 'rb') as f:
+                # files 字典里的 key 'avatar' 必须和后端 request.files.get('avatar') 对应
+                files = {'avatar': (os.path.basename(avatar_path), f)}
+                return requests.post(url, data=form_data, files=files)
+        else:
+            # 如果没有文件，只发文本
+            return requests.post(url, data=form_data)
+    @staticmethod
     def delete_item(item_id, category):
         return requests.post(f"{API_BASE_URL}/delete", json={"id": item_id, "category": category})
 

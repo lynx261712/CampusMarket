@@ -1,6 +1,7 @@
 from flask import Blueprint, jsonify, request
-from extensions import db       # 修改：去掉了 ..
-from models import User, Skill, LostItem  # 修改：去掉了 ..
+from extensions import db
+from models import User, Skill, LostItem
+from utils import save_uploaded_file # 记得导入这个工具
 
 bp = Blueprint('auth', __name__)
 
@@ -26,23 +27,50 @@ def get_user_info(user_id):
     if not user: return jsonify({"code": 404, "msg": "用户不存在"}), 404
     skills_count = Skill.query.filter_by(user_id=user.id).count()
     lost_count = LostItem.query.filter_by(user_id=user.id).count()
+    avatar_url = user.avatar if user.avatar else f"https://ui-avatars.com/api/?name={user.username}&background=random"
+
     return jsonify({
         "code": 200,
         "data": {
-            "id": user.id, "username": user.username, "contact": user.contact, "points": user.points,
-            "avatar": f"https://ui-avatars.com/api/?name={user.username}&background=random",
+            "id": user.id,
+            "username": user.username,
+            "contact": user.contact,
+            "points": user.points,
+            "avatar": avatar_url,  # 使用处理后的 URL
             "stats": {"posts": skills_count + lost_count, "skills": skills_count, "lost": lost_count}
         }
     })
 
 @bp.route('/user/update', methods=['POST'])
 def update_user():
-    data = request.get_json()
-    user = User.query.get(data['user_id'])
-    if data.get('username'): user.username = data['username']
-    if data.get('contact'): user.contact = data['contact']
-    db.session.commit()
-    return jsonify({"code": 200, "msg": "修改成功"})
+    try:
+        # 1. 既然要支持文件上传，就不能只用 get_json()，要改用 form 和 files
+        # 兼容处理：如果前端发的是 JSON (没发文件)，request.form 为空，尝试 get_json
+        if request.is_json:
+            data = request.get_json()
+            user_id = data.get('user_id')
+        else:
+            data = request.form
+            user_id = data.get('user_id')
+
+        user = User.query.get(user_id)
+        if not user: return jsonify({"code": 404, "msg": "用户不存在"}), 404
+
+        # 2. 更新文本信息
+        if data.get('username'): user.username = data.get('username')
+        if data.get('contact'): user.contact = data.get('contact')
+
+        # 3. 【新增】更新头像
+        avatar_file = request.files.get('avatar')
+        if avatar_file:
+            url = save_uploaded_file(avatar_file)
+            user.avatar = url
+
+        db.session.commit()
+        return jsonify({"code": 200, "msg": "修改成功"})
+    except Exception as e:
+        print(e)
+        return jsonify({"code": 500, "msg": str(e)}), 500
 
 @bp.route('/user/posts/<int:user_id>', methods=['GET'])
 def get_user_posts(user_id):

@@ -11,7 +11,8 @@ class User(db.Model):
     password = db.Column(db.String(50), nullable=False)
     contact = db.Column(db.String(100), nullable=False)
     points = db.Column(db.Integer, default=10)
-
+    # 【新增】存储自定义头像 URL
+    avatar = db.Column(db.String(500), nullable=True)
     # 关系
     skills = db.relationship('Skill', backref='author', lazy=True, foreign_keys='Skill.user_id')
     lost_items = db.relationship('LostItem', backref='author', lazy=True, foreign_keys='LostItem.user_id')
