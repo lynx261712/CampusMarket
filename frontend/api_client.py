@@ -123,3 +123,8 @@ class APIClient:
                 return requests.post(url, data=form_data, files=files)
         else:
             return requests.post(url, data=form_data)
+
+    @staticmethod
+    def get_tags():
+        """获取首页热门标签"""
+        return requests.get(f"{API_BASE_URL}/tags")

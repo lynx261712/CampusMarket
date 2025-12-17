@@ -97,7 +97,7 @@ def accept_order():
         return jsonify({"code": 500, "msg": str(e)}), 500
 
 
-# --- 确认完成接口 ---
+# --- 【核心修改】确认完成接口（含积分结算） ---
 @bp.route('/order/finish', methods=['POST'])
 def finish_order():
     try:
@@ -105,22 +105,58 @@ def finish_order():
         item_id = data.get('id')
         category = data.get('category')
 
-        model = Skill if category == 'skill' else LostItem
-        item = model.query.get(item_id)
+        # 1. 查找订单
+        if category == 'skill':
+            item = Skill.query.get(item_id)
+        else:
+            item = LostItem.query.get(item_id)
 
-        if not item:
-            return jsonify({"code": 404, "msg": "未找到订单"}), 404
+        if not item: return jsonify({"code": 404, "msg": "未找到订单"}), 404
 
-        # 更新状态为已完成 (2)
+        # 防止重复结算 (只有状态为1进行中时才结算)
+        if item.status != 1:
+            return jsonify({"code": 400, "msg": "订单状态不正确"}), 400
+
+        # 2. 积分结算逻辑
+        reward_points = 5
+        target_user = None
+
+        # 准备用户对象
+        publisher = User.query.get(item.user_id)
+        helper = User.query.get(item.helper_id)
+
+        if category == 'skill':
+            if item.type == 1:
+                # 技能-我能提供: 发布者出力 -> 奖励发布者
+                target_user = publisher
+            else:
+                # 技能-需要帮助: 接收者出力 -> 奖励接收者
+                target_user = helper
+
+        elif category == 'lost':
+            if item.type == 1:
+                # 招领-捡到了: 发布者捡到 -> 奖励发布者
+                target_user = publisher
+            else:
+                # 失物-丢失了: 接收者帮忙找回 -> 奖励接收者
+                target_user = helper
+
+        # 3. 执行加分
+        if target_user:
+            target_user.points += reward_points
+
+        # 4. 更新状态
         item.status = 2
-
         db.session.commit()
-        return jsonify({"code": 200, "msg": "订单已完成"})
+
+        msg = f"订单已完成，{target_user.username if target_user else '用户'} 积分+5"
+        return jsonify({"code": 200, "msg": msg})
     except Exception as e:
+        print(e)
         return jsonify({"code": 500, "msg": str(e)}), 500
 
 
-# --- 评价接口 (核心逻辑: 区分发布者/接单者身份) ---
+# --- 评价接口 ---
 @bp.route('/order/review', methods=['POST'])
 def review_order():
     try:
@@ -143,10 +179,7 @@ def review_order():
         if is_poster:
             if item.poster_review != 0: return jsonify({"code": 400, "msg": "您已评价过"}), 400
 
-            # 更新发布者的评价状态
             item.poster_review = 1 if action == 'reward' else 2
-
-            # 目标是接单者
             if item.helper_id:
                 target_user = User.query.get(item.helper_id)
 
@@ -154,10 +187,7 @@ def review_order():
         elif str(current_uid) == str(item.helper_id):
             if item.helper_review != 0: return jsonify({"code": 400, "msg": "您已评价过"}), 400
 
-            # 更新接单者的评价状态
             item.helper_review = 1 if action == 'reward' else 2
-
-            # 目标是发布者
             target_user = User.query.get(item.user_id)
 
         else:
@@ -177,12 +207,10 @@ def review_order():
         return jsonify({"code": 500, "msg": str(e)}), 500
 
 
-# --- 获取"我参与的互助" (包括我发布的已接单 + 我接单的) ---
+# --- 获取"我参与的互助" ---
 @bp.route('/user/helps/<int:user_id>', methods=['GET'])
 def get_my_helps(user_id):
     try:
-        # 查询条件:
-        # (我是Helper) OR (我是发布者 AND 状态不是0即已被接单)
         skill_filter = or_(
             Skill.helper_id == user_id,
             and_(Skill.user_id == user_id, Skill.status != 0)
@@ -197,12 +225,9 @@ def get_my_helps(user_id):
 
         data = []
 
-        # 辅助函数：封装数据
         def pack_item(obj, cat):
-            # 判断我是不是发布者
             is_poster = (str(obj.user_id) == str(user_id))
 
-            # 确定聊天对象
             if is_poster:
                 target_id = obj.helper_id
                 helper_user = User.query.get(target_id) if target_id else None
@@ -213,7 +238,6 @@ def get_my_helps(user_id):
                 target_name = obj.author.username if obj.author else "未知发布者"
                 my_review = obj.helper_review
 
-            # 【安全处理】防止 create_time 为空导致报错
             if obj.create_time:
                 time_str = obj.create_time.strftime("%Y-%m-%d %H:%M")
             else:
@@ -225,7 +249,7 @@ def get_my_helps(user_id):
                 "title": obj.title,
                 "image": obj.image,
                 "status": obj.status,
-                "create_time": time_str,  # 使用处理后的时间字符串
+                "create_time": time_str,
                 "is_poster": is_poster,
                 "target_id": target_id,
                 "target_name": target_name,
@@ -239,4 +263,48 @@ def get_my_helps(user_id):
         return jsonify({"code": 200, "data": data})
     except Exception as e:
         print(f"Get helps error: {e}")
+        return jsonify({"code": 500, "msg": str(e)}), 500
+
+
+# --- 获取热门标签 (智能导航版) ---
+@bp.route('/tags', methods=['GET'])
+def get_hot_tags():
+    try:
+        # 1. 获取最新的技能标题
+        skill_titles = db.session.query(Skill.title) \
+            .filter_by(status=0) \
+            .order_by(Skill.create_time.desc()) \
+            .limit(6).all()
+
+        # 2. 获取最新的失物标题
+        lost_titles = db.session.query(LostItem.title) \
+            .filter_by(status=0) \
+            .order_by(LostItem.create_time.desc()) \
+            .limit(4).all()
+
+        tags = []
+        seen_titles = set()
+
+        # 封装数据：带上 category 标记
+        for t in skill_titles:
+            if t[0] and t[0] not in seen_titles:
+                tags.append({"text": t[0], "cat": "skill"})  # 标记为 skill
+                seen_titles.add(t[0])
+
+        for t in lost_titles:
+            if t[0] and t[0] not in seen_titles:
+                tags.append({"text": t[0], "cat": "lost"})  # 标记为 lost
+                seen_titles.add(t[0])
+
+        # 如果没数据，给点默认的
+        if not tags:
+            tags = [
+                {"text": "Python", "cat": "skill"},
+                {"text": "雨伞", "cat": "lost"}
+            ]
+
+        # 返回前 8 个
+        return jsonify({"code": 200, "data": tags[:8]})
+    except Exception as e:
+        print(e)
         return jsonify({"code": 500, "msg": str(e)}), 500

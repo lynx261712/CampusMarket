@@ -4,6 +4,8 @@ from extensions import db
 from models import LostItem, User
 from utils import save_uploaded_file
 
+# 注意：这里绝对不能有 from api_client import APIClient
+
 bp = Blueprint('lost_items', __name__)
 
 
@@ -56,10 +58,8 @@ def create_lost_item():
         )
         db.session.add(new_item)
 
-        # 积分奖励逻辑
-        user = User.query.get(user_id)
-        if user and new_item.type == 1:  # 捡到东西
-            user.points += 5
+        # 【逻辑确认】根据你的要求，发布时不加分，统一在完成时结算
+        # 所以这里不需要 user.points += ...
 
         db.session.commit()
         return jsonify({"code": 200, "msg": "发布成功"})
@@ -70,5 +70,8 @@ def create_lost_item():
 # ... (保留 tags 接口不变) ...
 @bp.route('/lost-items/tags', methods=['GET'])
 def get_search_tags():
-    # ... (保持原样)
-    pass
+    try:
+        # 这里只做简单的 fallback，主要的 tags 逻辑在 skills.py 的 get_hot_tags 里
+        return jsonify({"code": 200, "data": []})
+    except:
+        return jsonify({"code": 200, "data": []})
